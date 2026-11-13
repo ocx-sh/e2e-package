@@ -1,0 +1,22 @@
+name: Release ocx
+description: >-
+  Download the `ocx-bin` artifact of this run (the ocx the `ocx` job built from source) and put it at
+  `/usr/local/bin/ocx`. The e2e-package counterpart of ocx's action of the same name: jobs that publish, announce or
+  prune drive the registry with the ocx under test, never with a toolchain one.
+
+runs:
+  using: composite
+  steps:
+    - name: Download ocx
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: ocx-bin
+        path: ${{ runner.temp }}/ocx-bin
+    - name: Install ocx
+      shell: bash
+      env:
+        BIN: ${{ runner.temp }}/ocx-bin
+      run: |
+        set -euo pipefail
+        sudo install -m 0755 "$BIN/ocx" /usr/local/bin/ocx
+        ocx version

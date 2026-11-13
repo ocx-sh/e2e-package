@@ -1,3 +1,4 @@
 /target
 /dist
 /sbom.json
+/sbom-*.json

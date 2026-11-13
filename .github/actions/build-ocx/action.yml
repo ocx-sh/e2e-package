@@ -1,0 +1,46 @@
+name: Build ocx
+description: >-
+  Build ocx from a commit of an allowlisted repository and install it at `/usr/local/bin/ocx`. Same pattern as
+  e2e-index's client-e2e workflow. The caller has checked out nothing this action needs.
+
+inputs:
+  repository:
+    description: Repository to build from (ocx-sh/ocx or ocx-sh/e2e-index).
+    required: true
+  ref:
+    description: Full 40-character commit SHA.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Validate inputs
+      shell: bash
+      env:
+        OCX_REPOSITORY: ${{ inputs.repository }}
+        OCX_REF: ${{ inputs.ref }}
+      run: |
+        set -euo pipefail
+        case "$OCX_REPOSITORY" in
+          ocx-sh/ocx | ocx-sh/e2e-index) ;;
+          *) echo "::error::ocx_repository must be ocx-sh/ocx or ocx-sh/e2e-index"; exit 64 ;;
+        esac
+        [[ "$OCX_REF" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::ocx_ref must be a 40-hex commit SHA"; exit 64; }
+    - name: Check out ocx
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: ${{ inputs.repository }}
+        ref: ${{ inputs.ref }}
+        path: ocx-src
+        submodules: recursive
+        persist-credentials: false
+    - name: Build and install ocx
+      shell: bash
+      working-directory: ocx-src
+      env:
+        CARGO_BUILD_JOBS: '4'
+      run: |
+        set -euo pipefail
+        cargo build --locked -p ocx
+        sudo install -m 0755 target/debug/ocx /usr/local/bin/ocx
+        ocx version
