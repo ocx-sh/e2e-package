@@ -15,8 +15,8 @@ It publishes `ghcr.io/ocx-sh/e2e-package` under these tags, each signed differen
 | `unsigned` | `unsigned.yml` | nothing | none |
 
 Every workflow is manual (`workflow_dispatch`) except `release-tag.yml`, runs only from this repository
-(guarded on its repository id) and, apart from the tag one, only from `main`. The signature covers the platform manifest
-and the image index.
+(guarded on its repository id) and, apart from the tag one, only from `main`. The signature covers the platform manifest,
+which is what an install verifies; the image index is not signed.
 
 ## Required secrets and settings
 

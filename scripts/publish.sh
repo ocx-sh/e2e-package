@@ -34,10 +34,8 @@ fi
 
 ocx package push "${push[@]}" dist/e2e-package.tar.xz
 
-# The platform manifest is signed by the push; sign the image index it landed in as well.
-if [ "$mode" != none ]; then
-  ocx package sign "${key[@]}" "$id"
-fi
+# Only the platform manifest is signed (by the push). ocx 0.6.6 cannot sign or verify an
+# image-index subject on ghcr.io, and install verifies the platform-selected manifest.
 
 if [ "$sboms" -ge 2 ]; then
   sleep 180
@@ -53,7 +51,6 @@ case "$mode" in
   none) exit 0 ;;
 esac
 ocx package verify -p "$platform" "${verify[@]}" "$id"
-ocx package verify "${verify[@]}" "$id"
 if [ "$sboms" -ge 1 ] && [ "$mode" = keyless ]; then
   ocx package verify --attestation --type cyclonedx -p "$platform" "${verify[@]}" "$id"
 fi
