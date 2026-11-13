@@ -230,6 +230,7 @@ jobs:
       - name: Build the binary and its SBOM
         env:
           ASSET: ${{ matrix.asset }}
+          E2E_VERSION: ${{ needs.plan.outputs.semver }}
         run: |
           set -euo pipefail
           scripts/build.sh
