@@ -1,12 +1,54 @@
 name: unsigned-v
 
 # Publishes :0.0.1, a version tag with no signature and no attestation: the subject `backfill.yml` signs afterwards.
+# Then announces it into `e2e/release` as `--output index-out`, an artifact committed by hand like release.yml's.
 on:
   workflow_dispatch:
+    inputs:
+      ocx_repository:
+        description: Repository to build ocx from (ocx-sh/ocx or ocx-sh/e2e-index).
+        required: true
+        type: string
+        default: ocx-sh/ocx
+      ocx_ref:
+        description: Full 40-character commit SHA of that repository.
+        required: true
+        type: string
 
 permissions: {}
 
+env:
+  INDEX_REPO: ocx-sh/e2e-index
+  INDEX_PACKAGE: e2e/release
+
 jobs:
+  # The ocx that announces, built from the named source; no credential in this job.
+  ocx:
+    name: Build ocx
+    if: github.repository_id == '1455949009' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build ocx
+        uses: ./.github/actions/build-ocx
+        with:
+          repository: ${{ inputs.ocx_repository }}
+          ref: ${{ inputs.ocx_ref }}
+      - name: Upload ocx
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ocx-bin
+          path: /usr/local/bin/ocx
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
   unsigned-v:
     if: github.repository_id == '1455949009' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -29,3 +71,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/publish.sh 0.0.1 none 0
+
+  announce:
+    name: Announce
+    needs: [ocx, unsigned-v]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the release ocx
+        uses: ./.github/actions/release-ocx
+      - name: Announce into the index
+        run: |
+          set -euo pipefail
+          # No request and no credential: the entry is written under index-out and committed by hand.
+          printf '0.0.1\n' > "$RUNNER_TEMP/tags.txt"
+          ocx package announce --tags-file "$RUNNER_TEMP/tags.txt" --index-repo "$INDEX_REPO" --output index-out "$INDEX_PACKAGE"
+      - name: Upload the index entry
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: index-out
+          path: index-out
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
