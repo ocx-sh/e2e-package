@@ -89,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.kind == "dev"
         else select_candidates(tags, cutoff)
     )
-    print("\n".join(chosen))
+    sys.stdout.write("".join(f"{tag}\n" for tag in chosen))
     return 0
 
 
