@@ -1,0 +1,10 @@
+[package]
+name = "e2e-package"
+version = "0.1.0"
+edition = "2021"
+description = "Fixture package for the ocx publisher-trust end-to-end suite"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+hex = "0.4.3"

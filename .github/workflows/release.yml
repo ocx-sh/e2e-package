@@ -1,0 +1,46 @@
+name: release
+
+# Publishes ghcr.io/ocx-sh/e2e-package:<case>, signed keyless by this workflow at refs/heads/main.
+# `case` picks the tag and whether a second SBOM follows the first by a few minutes.
+on:
+  workflow_dispatch:
+    inputs:
+      case:
+        description: Fixture case, which is also the published tag.
+        type: choice
+        options: [main, two-sboms]
+        default: main
+
+permissions: {}
+
+jobs:
+  release:
+    if: github.repository_id == '1455949009' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
+        with:
+          version: '0.6.6'
+          project: ''
+          cache: false
+      - name: Build
+        run: scripts/build.sh
+      - name: Publish, sign, attest, self-verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CASE: ${{ inputs.case }}
+        run: |
+          case "$CASE" in
+            main) sboms=1 ;;
+            two-sboms) sboms=2 ;;
+            *) echo "unknown case: $CASE" >&2; exit 64 ;;
+          esac
+          scripts/publish.sh "$CASE" keyless "$sboms"
