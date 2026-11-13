@@ -77,7 +77,8 @@ env:
   PACKAGE_LOGICAL: e2e.ocx.sh/e2e/release
   # Where announce looks for the committed root; the Pages site of the same repository serves it.
   INDEX_REPO: ocx-sh/e2e-index
-  INDEX_PACKAGE: e2e/release
+  # Fully qualified: a bare name would take the default registry (ocx.sh), not the e2e.ocx.sh the committed root names.
+  INDEX_PACKAGE: e2e.ocx.sh/e2e/release
   INDEX_URL: https://ocx-sh.github.io/e2e-index
   # Whitespace-separated rows of `<asset triple> <OCI platform>`.
   PLATFORMS: |

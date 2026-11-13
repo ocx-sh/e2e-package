@@ -19,7 +19,8 @@ permissions: {}
 
 env:
   INDEX_REPO: ocx-sh/e2e-index
-  INDEX_PACKAGE: e2e/release
+  # Fully qualified: a bare name would take the default registry (ocx.sh), not the e2e.ocx.sh the committed root names.
+  INDEX_PACKAGE: e2e.ocx.sh/e2e/release
 
 jobs:
   # The ocx that announces, built from the named source; no credential in this job.
