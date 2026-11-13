@@ -91,8 +91,10 @@ env:
   RELEASE_IDENTITY: ${{ github.server_url }}/ocx-sh/e2e-package/.github/workflows/release.yml@refs/heads/main
 
 concurrency:
-  group: release-${{ inputs.mode }}
-  # A half-published release is worse than a queued one.
+  # A release and a candidate share a group (they write the same package's version tags); a dev build has its own.
+  group: release-${{ inputs.mode == 'dev' && 'dev' || 'release' }}
+  # Only one run waits per group: a newer dispatch replaces a run still waiting. A half-published release is worse
+  # than a queued one.
   cancel-in-progress: false
 
 jobs:
@@ -293,7 +295,14 @@ jobs:
             --annotation "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}")
           # Only a release pins its manifests with a keep tag; a candidate or a dev build stays removable.
           [[ "$MODE" == release ]] || flags+=(--no-keep-tag)
-          while read -r asset platform; do
+          # Rows come in on fd 3 so no command in the body can consume them from stdin.
+          if [[ -z "$PLATFORMS" ]]; then
+            echo "::error::no platforms to publish"
+            exit 1
+          fi
+          expected="$(grep -c . <<< "$PLATFORMS")"
+          published=0
+          while read -r asset platform <&3; do
             [[ -n "$asset" ]] || continue
             stage="$(mktemp -d)"
             tar -xzf "dist/e2e-package-${asset}.tar.gz" -C "$stage"
@@ -305,7 +314,12 @@ jobs:
               --sbom "dist/e2e-package-${asset}.cdx.json" \
               "${flags[@]}"
             rm -rf "$stage"
-          done <<< "$PLATFORMS"
+            published=$((published + 1))
+          done 3<<< "$PLATFORMS"
+          if ((published != expected)); then
+            echo "::error::published $published of $expected platforms"
+            exit 1
+          fi
       - name: Verify every platform against this workflow's identity
         env:
           MODE: ${{ inputs.mode }}
@@ -320,7 +334,13 @@ jobs:
           else
             identity="$RELEASE_IDENTITY"
           fi
-          while read -r asset platform; do
+          if [[ -z "$PLATFORMS" ]]; then
+            echo "::error::no platforms to verify"
+            exit 1
+          fi
+          expected="$(grep -c . <<< "$PLATFORMS")"
+          verified=0
+          while read -r asset platform <&3; do
             [[ -n "$asset" ]] || continue
             ocx package verify -p "$platform" \
               --certificate-identity "$identity" --certificate-oidc-issuer "$OIDC_ISSUER" \
@@ -328,7 +348,12 @@ jobs:
             ocx package verify -p "$platform" --attestation --type cyclonedx \
               --certificate-identity "$identity" --certificate-oidc-issuer "$OIDC_ISSUER" \
               "${PACKAGE}:${TAG}"
-          done <<< "$PLATFORMS"
+            verified=$((verified + 1))
+          done 3<<< "$PLATFORMS"
+          if ((verified != expected)); then
+            echo "::error::verified $verified of $expected platforms"
+            exit 1
+          fi
       # The one place a floating tag is written. Every platform above is pushed under the build tag, signed,
       # attested and verified before this step runs, so no floating tag moves before then; `cascade repair` only
       # re-points tags at content the registry already serves (it uploads nothing) and is scoped to this build tag.
@@ -448,17 +473,20 @@ jobs:
           persist-credentials: false
       - name: Install the release ocx
         uses: ./.github/actions/release-ocx
+      # The logical name resolves through the index this repository serves (fixture-only; ocx's resolves it natively).
+      - name: Point the logical name at the index
+        run: |
+          set -euo pipefail
+          printf '[registries."e2e.ocx.sh"]\nindex = "%s"\n' "$INDEX_URL" > "$RUNNER_TEMP/ocx-config.toml"
+          echo "OCX_CONFIG=$RUNNER_TEMP/ocx-config.toml" >> "$GITHUB_ENV"
       - name: Prune candidates of old releases
+        id: prune
         env:
           DAYS: ${{ inputs.prune_after_days }}
           OCX_AUTH_ghcr_io_USER: ${{ github.actor }}
           OCX_AUTH_ghcr_io_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OCX_ANNOUNCE_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # The logical name resolves through the index this repository serves.
-          export OCX_CONFIG="$RUNNER_TEMP/ocx-config.toml"
-          printf '[registries."e2e.ocx.sh"]\nindex = "%s"\n' "$INDEX_URL" > "$OCX_CONFIG"
           ocx --remote --format json index list "$PACKAGE_RELEASE" | jq -r '.items[].tags[]?' > "$RUNNER_TEMP/tags.txt"
           python3 scripts/release_prune_select.py candidates --days "$DAYS" < "$RUNNER_TEMP/tags.txt" > "$RUNNER_TEMP/selected.txt"
           mapfile -t selected < <(grep . "$RUNNER_TEMP/selected.txt" || true)
@@ -467,7 +495,13 @@ jobs:
             exit 0
           fi
           ocx package prune --forge github --tags-file "$RUNNER_TEMP/pruned.txt" "$PACKAGE_LOGICAL" "${selected[@]}"
-          ocx package announce --tags-from-registry --index-repo "$INDEX_REPO" --output index-out "$INDEX_PACKAGE"
+          echo "pruned=true" >> "$GITHUB_OUTPUT"
+      # Only the announce carries the read token; prune does not need it.
+      - name: Announce the pruned candidates
+        if: ${{ steps.prune.outputs.pruned == 'true' }}
+        env:
+          OCX_ANNOUNCE_TOKEN: ${{ github.token }}
+        run: ocx package announce --tags-from-registry --index-repo "$INDEX_REPO" --output index-out "$INDEX_PACKAGE"
       - name: Upload the index entry
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
