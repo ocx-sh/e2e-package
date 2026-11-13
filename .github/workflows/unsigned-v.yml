@@ -87,9 +87,11 @@ jobs:
       - name: Install the release ocx
         uses: ./.github/actions/release-ocx
       - name: Announce into the index
+        env:
+          OCX_ANNOUNCE_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # No request and no credential: the entry is written under index-out and committed by hand.
+          # No request: the entry is written under index-out and committed by hand. The job token only authenticates the read.
           printf '0.0.1\n' > "$RUNNER_TEMP/tags.txt"
           ocx package announce --tags-file "$RUNNER_TEMP/tags.txt" --index-repo "$INDEX_REPO" --output index-out "$INDEX_PACKAGE"
       - name: Upload the index entry

@@ -375,13 +375,14 @@ jobs:
         env:
           MODE: ${{ inputs.mode }}
           TAGS_FILE: ${{ runner.temp }}/tags/published-tags.txt
+          OCX_ANNOUNCE_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [[ ! -s "$TAGS_FILE" ]]; then
             echo "::error::publish recorded no tags; refusing to announce nothing"
             exit 1
           fi
-          # No request and no credential: the entry is written under index-out and committed by hand.
+          # No request: the entry is written under index-out and committed by hand. The job token only authenticates the read.
           flags=(--tags-file "$TAGS_FILE" --index-repo "$INDEX_REPO" --output index-out)
           # A candidate's row is removable without review; prune frees it later.
           [[ "$MODE" == candidate ]] && flags+=(--ephemeral)
@@ -451,6 +452,7 @@ jobs:
           DAYS: ${{ inputs.prune_after_days }}
           OCX_AUTH_ghcr_io_USER: ${{ github.actor }}
           OCX_AUTH_ghcr_io_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OCX_ANNOUNCE_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           # The logical name resolves through the index this repository serves.
