@@ -18,6 +18,11 @@ Every workflow is manual (`workflow_dispatch`) except `release-tag.yml`, runs on
 (guarded on its repository id) and, apart from the tag one, only from `main`. The signature covers the platform manifest,
 which is what an install verifies; the image index is not signed.
 
+## Testing by hand
+
+The commands and the expected result of every tag are in
+[e2e-index TESTING.md](https://github.com/ocx-sh/e2e-index/blob/main/TESTING.md).
+
 ## Required secrets and settings
 
 Names only; no value belongs in this repository.
