@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish dist/ to ghcr.io/ocx-sh/e2e-package:<tag>.
+# Bundle dist/pkg and publish it to ghcr.io/ocx-sh/e2e-package:<tag>.
 #   publish.sh <tag> <mode> <sboms>
 #   mode   keyless | key | none   (key reads OCX_SIGNING_KEY / OCX_KEY_PASSWORD from the environment)
 #   sboms  0 | 1 | 2              (the second is attested minutes after the first)
@@ -15,6 +15,12 @@ issuer='https://token.actions.githubusercontent.com'
 
 export OCX_AUTH_ghcr_io_USER="${GITHUB_ACTOR:?}"
 export OCX_AUTH_ghcr_io_TOKEN="${GH_TOKEN:?}"
+
+# Signatures attach to a digest, not a tag: without per-case content every tag would share one
+# digest and every case would carry every other case's signatures.
+mkdir -p dist/pkg/share
+printf '%s\n' "$tag" >dist/pkg/share/e2e-case
+ocx package create dist/pkg -m metadata.json -o dist/e2e-package.tar.xz -p "$platform"
 
 push=(--identifier "$id" --platform "$platform"
   --annotation "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}")
