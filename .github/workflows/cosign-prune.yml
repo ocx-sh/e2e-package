@@ -1,0 +1,72 @@
+name: cosign-prune
+
+# Proves `ocx package prune` on GitHub Packages deletes cosign's tag-schema artifacts (`sha256-<hex>.sig`, `.att`)
+# of the pruned tag. Works only in the dev package (ghcr.io/ocx-sh/dev/e2e-package): a throwaway candidate is
+# published, signed with the key pair of key-sign.yml, attested, pruned. Nothing of ghcr.io/ocx-sh/e2e-package is touched.
+on:
+  workflow_dispatch:
+    inputs:
+      ocx_repository:
+        description: Repository to build ocx from (ocx-sh/ocx or ocx-sh/e2e-index).
+        required: true
+        type: string
+        default: ocx-sh/ocx
+      ocx_ref:
+        description: Full 40-character commit SHA of that repository.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-dev
+  cancel-in-progress: false
+
+jobs:
+  ocx:
+    name: Build ocx
+    if: github.repository_id == '1455949009'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-ocx
+        with:
+          repository: ${{ inputs.ocx_repository }}
+          ref: ${{ inputs.ocx_ref }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ocx-bin
+          path: /usr/local/bin/ocx
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+  cosign-prune:
+    needs: ocx
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/release-ocx
+      - name: Install cosign
+        run: |
+          set -euo pipefail
+          ocx install --select ocx.sh/sigstore/cosign:3.1.1
+          echo "$HOME/.ocx/symlinks/ocx.sh/sigstore/cosign/current/content" >> "$GITHUB_PATH"
+      - name: Publish, sign, attest, prune
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
+          COSIGN_KEY: ${{ secrets.E2E_SIGNING_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.E2E_SIGNING_KEY_PASSWORD }}
+        run: scripts/cosign_prune_fixture.sh
