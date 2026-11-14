@@ -61,7 +61,7 @@ jobs:
       - name: Install cosign
         run: |
           set -euo pipefail
-          ocx install --select ocx.sh/sigstore/cosign:3.1.1
+          ocx package install --select ocx.sh/sigstore/cosign:3.1.1
           echo "$HOME/.ocx/symlinks/ocx.sh/sigstore/cosign/current/content" >> "$GITHUB_PATH"
       - name: Publish, sign, attest, prune
         env:

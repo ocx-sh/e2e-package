@@ -44,7 +44,7 @@ for want in "$tag" "sha256-${hex}.sig" "sha256-${hex}.att"; do
 done
 
 # The dev package has no index, so --force. The dry run lists the selection before anything is deleted.
-ocx package prune --forge github --force --dry-run --format json "$package" "$tag"
+ocx --format json package prune --forge github --force --dry-run "$package" "$tag"
 ocx package prune --forge github --force "$package" "$tag"
 
 tags > "$work/after.txt"
